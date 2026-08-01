@@ -12,8 +12,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -43,7 +45,6 @@ public class AlbumItemServiceImpl implements AlbumItemService {
         this.albumItemRepository = albumItemRepository;
         this.userRepository = userRepository;
 
-        // Configure modern JDK HttpClient with automatic redirect follow & timeouts
         HttpClient httpClient = HttpClient.newBuilder()
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .connectTimeout(Duration.ofSeconds(10))
@@ -52,12 +53,21 @@ public class AlbumItemServiceImpl implements AlbumItemService {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(Duration.ofSeconds(10));
 
+        // Configure Jackson converter to accept Apple's legacy 'text/javascript' MIME
+        // type
+        MappingJackson2HttpMessageConverter jacksonConverter = new MappingJackson2HttpMessageConverter();
+        List<MediaType> supportedMediaTypes = new ArrayList<>(jacksonConverter.getSupportedMediaTypes());
+        supportedMediaTypes.add(MediaType.valueOf("text/javascript"));
+        supportedMediaTypes.add(MediaType.valueOf("text/javascript;charset=UTF-8"));
+        jacksonConverter.setSupportedMediaTypes(supportedMediaTypes);
+
         this.restClient = restClientBuilder
                 .requestFactory(requestFactory)
                 .baseUrl("https://itunes.apple.com")
+                .messageConverters(converters -> converters.add(0, jacksonConverter))
                 .defaultHeader(HttpHeaders.USER_AGENT,
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-                .defaultHeader(HttpHeaders.ACCEPT, "application/json")
+                .defaultHeader(HttpHeaders.ACCEPT, "application/json, text/javascript, */*")
                 .build();
     }
 
