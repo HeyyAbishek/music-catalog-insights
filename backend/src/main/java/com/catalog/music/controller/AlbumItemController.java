@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Collections;
 import java.util.List;
 
 @RestController
@@ -33,8 +34,28 @@ public class AlbumItemController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<ITunesSearchResponseDto> searchExternalAlbums(@RequestParam String query) {
-        return ResponseEntity.ok(albumItemService.searchExternalAlbums(query));
+    public ResponseEntity<?> searchExternalAlbums(
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "query", required = false) String query) {
+
+        // Fallback: Accept either 'q' or 'query' parameter from frontend
+        String searchTerm = (q != null && !q.trim().isEmpty()) ? q : query;
+
+        if (searchTerm == null || searchTerm.trim().isEmpty()) {
+            ITunesSearchResponseDto emptyResponse = new ITunesSearchResponseDto();
+            emptyResponse.setResultCount(0);
+            emptyResponse.setResults(Collections.emptyList());
+            return ResponseEntity.ok(emptyResponse);
+        }
+
+        try {
+            ITunesSearchResponseDto response = albumItemService.searchExternalAlbums(searchTerm.trim());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace(); // Logs full stack trace to Railway console
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error searching catalog: " + e.getMessage());
+        }
     }
 
     @GetMapping
