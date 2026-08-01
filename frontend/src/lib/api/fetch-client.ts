@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'https://music-catalog-insights-production.up.railway.app';
 
 type FetchClientOptions = Omit<RequestInit, "body"> & {
   body?: BodyInit | null | Record<string, unknown>;
