@@ -1,0 +1,282 @@
+# 🎵 Music Catalog & Insights Platform
+
+A full-stack, AI-powered music catalog application that allows users to search across live iTunes catalog data, explore analytical dashboards on music trends, and generate AI-driven catalog insights.
+
+🌐 **Live Demo:** https://music-catalog-insights-psi.vercel.app
+
+---
+
+## 🚀 Tech Stack
+
+### Frontend
+- Next.js
+- TypeScript
+- Tailwind CSS
+
+### Backend
+- Spring Boot (Java)
+
+### Database
+- PostgreSQL / MySQL
+
+### AI
+- OpenAI API / Spring AI
+
+### Deployment
+- Vercel
+- Render
+
+---
+
+## ⚠️ Important Status Note
+
+### ✅ Current Implementation State
+
+All core application requirements are fully implemented and operational, including:
+
+- Live Catalog Search
+- Debounced Search
+- Pagination
+- Analytics Dashboard
+- AI Features
+- Responsive UI
+- Production Deployment
+
+### ⚠️ Known Limitation
+
+Adding or saving new albums to the personal library is currently disabled in the production build due to backend database synchronization constraints.
+
+The frontend interface, backend APIs, library browsing, and analytics functionality remain operational.
+
+---
+
+# 📌 Table of Contents
+
+- [Entity Choice](#-entity-choice)
+- [Database Schema](#-database-schema)
+- [Implemented Features](#-implemented-features--requirements-checklist)
+- [AI Features](#-ai-feature-natural-language-trend-summary--insights)
+- [Local Setup](#-local-setup--installation)
+- [Technical Trade-offs](#-technical-trade-offs--design-decisions)
+
+---
+
+# 🎯 Entity Choice
+
+The primary domain entity chosen for this application is the **Album**, along with its associated **Artist** and **Track** metadata.
+
+### Why Albums?
+
+- Rich metadata including release date, genre, artwork, and track count.
+- Seamless compatibility with the iTunes Search API.
+- Enables meaningful analytics across genres, release years, artists, and popularity.
+
+---
+
+# 🗄️ Database Schema
+
+```sql
+CREATE TABLE albums (
+    id BIGSERIAL PRIMARY KEY,
+    apple_catalog_id VARCHAR(100) UNIQUE,
+    title VARCHAR(255) NOT NULL,
+    artist_name VARCHAR(255) NOT NULL,
+    genre VARCHAR(100) NOT NULL,
+    release_date DATE,
+    track_count INT,
+    artwork_url VARCHAR(500),
+    user_rating INT CHECK (user_rating BETWEEN 1 AND 5),
+    user_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE catalog_analytics_cache (
+    id BIGSERIAL PRIMARY KEY,
+    genre_distribution JSONB,
+    release_year_distribution JSONB,
+    last_updated TIMESTAMP
+);
+```
+
+---
+
+# ✅ Implemented Features & Requirements Checklist
+
+| Requirement | Status | Implementation |
+|-------------|--------|----------------|
+| **Search Page** | ✅ Implemented | Live iTunes search with 400ms debouncing and pagination |
+| **Library Page** | ⚠️ Partial | Displays catalog/library data. Adding new albums is currently disabled |
+| **Analytics Dashboard** | ✅ Implemented | Four interactive Recharts visualizations |
+| **Bar Chart** | ✅ | Album track count comparison |
+| **Pie / Donut Chart** | ✅ | Genre distribution |
+| **Line Chart** | ✅ | Releases by year |
+| **Horizontal Bar Chart** | ✅ | Top-rated albums / artists |
+| **Responsive UI** | ✅ Implemented | Dark-mode responsive interface with loading, empty, and error states |
+| **AI Feature** | ✅ Implemented | Natural language insights powered by OpenAI / Spring AI |
+| **Deployment** | ✅ Implemented | Frontend on Vercel, Backend on Render |
+| **Debounced Search** | ✅ Implemented | Custom React debounce hook (400ms) |
+| **Pagination** | ✅ Implemented | Pageable Spring Boot APIs with Previous / Next controls |
+| **Caching** | ✅ Implemented | HTTP and in-memory caching for search and analytics |
+
+---
+
+# 📊 Analytics Dashboard
+
+The dashboard includes four interactive visualizations:
+
+- 📈 **Bar Chart** — Album track count comparison
+- 🥧 **Pie / Donut Chart** — Genre distribution
+- 📉 **Line Chart** — Releases over time
+- 📊 **Horizontal Bar Chart** — Top-rated albums / artists
+
+---
+
+# 🤖 AI Feature: Natural Language Trend Summary & Insights
+
+The application includes an AI-powered **Catalog Insights Engine**.
+
+### Trend Summary Generator
+
+Analyzes aggregate catalog data and generates executive summaries highlighting:
+
+- Dominant genres
+- Release trends
+- Music eras
+- Collection diversity
+
+### Natural Language Query Interface
+
+Users can ask questions in plain English, for example:
+
+> "Show me high-energy pop albums from the 90s."
+
+> "Summarize the genre distribution."
+
+> "Which genres dominate the catalog?"
+
+The backend interprets the request and returns filtered analytical insights.
+
+---
+
+# 🛠️ Local Setup & Installation
+
+## Prerequisites
+
+- Node.js 18+
+- Java 17+
+- Maven 3.8+
+- PostgreSQL / MySQL (or H2 for local testing)
+
+---
+
+## 1. Backend Setup
+
+```bash
+git clone https://github.com/YOUR_USERNAME/music-catalog-insights.git
+
+cd music-catalog-insights/backend
+
+# Configure application.properties
+
+mvn clean install
+
+mvn spring-boot:run
+```
+
+Backend runs at:
+
+```
+http://localhost:8080
+```
+
+---
+
+## 2. Frontend Setup
+
+```bash
+cd ../frontend
+
+npm install
+
+echo "NEXT_PUBLIC_API_URL=http://localhost:8080" > .env.local
+
+npm run dev
+```
+
+Frontend runs at:
+
+```
+http://localhost:3000
+```
+
+---
+
+# ⚖️ Technical Trade-offs & Design Decisions
+
+## Client-side Debouncing
+
+### Decision
+
+Implemented debouncing using a custom React hook with a **400ms delay**.
+
+### Trade-off
+
+- Significantly reduces unnecessary API requests.
+- Helps avoid iTunes API rate limiting.
+- Introduces a slight delay before displaying results.
+
+---
+
+## CORS Configuration
+
+### Decision
+
+Configured Spring Boot global CORS mappings to allow only:
+
+- `localhost:3000`
+- Production Vercel deployment
+
+### Trade-off
+
+- Improved backend security.
+- Requires backend redeployment if frontend domains change.
+
+---
+
+## Live Search vs Database Persistence
+
+### Decision
+
+Search queries are served directly from the **iTunes Search API**, while the personal library is backed by a relational database.
+
+### Trade-off
+
+**Advantages**
+
+- Always retrieves the latest catalog data.
+- No need to store millions of external records locally.
+- Faster development and lower storage costs.
+
+**Current Limitation**
+
+Persisting search results requires mapping external iTunes identifiers to local database entities. This synchronization remains the only known limitation affecting library additions in the current production release.
+
+---
+
+# 📌 Future Improvements
+
+- Enable saving albums to personal library
+- User authentication
+- Playlist creation
+- Advanced filtering
+- AI-powered album recommendations
+- Favorite albums and artists
+- Offline analytics caching
+- Export analytics reports
+
+---
+
+## 👨‍💻 Author
+
+Built as a full-stack technical assessment demonstrating modern web development, AI integration, analytics, and scalable backend architecture.
