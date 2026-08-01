@@ -8,20 +8,21 @@ import com.catalog.music.model.User;
 import com.catalog.music.repository.AlbumItemRepository;
 import com.catalog.music.repository.UserRepository;
 import com.catalog.music.service.AlbumItemService;
-import java.util.ArrayList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClient.Builder;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import org.springframework.http.HttpStatus;
 
 @Service
 @Transactional
@@ -39,7 +40,12 @@ public class AlbumItemServiceImpl implements AlbumItemService {
             Builder restClientBuilder) {
         this.albumItemRepository = albumItemRepository;
         this.userRepository = userRepository;
-        this.restClient = restClientBuilder.baseUrl("https://itunes.apple.com").build();
+        this.restClient = restClientBuilder
+                .baseUrl("https://itunes.apple.com")
+                .defaultHeader(HttpHeaders.USER_AGENT,
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                .defaultHeader(HttpHeaders.ACCEPT, "application/json")
+                .build();
     }
 
     @Override
@@ -51,7 +57,7 @@ public class AlbumItemServiceImpl implements AlbumItemService {
                             .path("/search")
                             .queryParam("term", query)
                             .queryParam("entity", "album")
-                            .queryParam("limit", 10)
+                            .queryParam("limit", 25)
                             .build())
                     .retrieve()
                     .body(ITunesSearchResponseDto.class);
