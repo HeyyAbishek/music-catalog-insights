@@ -8,16 +8,26 @@ import com.catalog.music.model.User;
 import com.catalog.music.repository.AlbumItemRepository;
 import com.catalog.music.repository.UserRepository;
 import com.catalog.music.service.AlbumItemService;
+import java.util.ArrayList;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClient.Builder;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.http.HttpStatus;
 
 @Service
 @Transactional
 public class AlbumItemServiceImpl implements AlbumItemService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AlbumItemServiceImpl.class);
 
     private final AlbumItemRepository albumItemRepository;
     private final UserRepository userRepository;
@@ -26,19 +36,52 @@ public class AlbumItemServiceImpl implements AlbumItemService {
     public AlbumItemServiceImpl(
             AlbumItemRepository albumItemRepository,
             UserRepository userRepository,
-            RestClient restClient) {
+            Builder restClientBuilder) {
         this.albumItemRepository = albumItemRepository;
         this.userRepository = userRepository;
-        this.restClient = restClient;
+        this.restClient = restClientBuilder.baseUrl("https://itunes.apple.com").build();
     }
 
     @Override
     @Transactional(readOnly = true)
     public ITunesSearchResponseDto searchExternalAlbums(String query) {
-        return restClient.get()
-                .uri("https://itunes.apple.com/search?term={query}&entity=album", query)
-                .retrieve()
-                .body(ITunesSearchResponseDto.class);
+        try {
+            ITunesSearchResponseDto response = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/search")
+                            .queryParam("term", query)
+                            .queryParam("entity", "album")
+                            .queryParam("limit", 10)
+                            .build())
+                    .retrieve()
+                    .body(ITunesSearchResponseDto.class);
+
+            if (response == null) {
+                return new ITunesSearchResponseDto();
+            }
+
+            if (response.getResults() == null) {
+                response.setResults(new ArrayList<>());
+            }
+
+            if (response.getResultCount() == null) {
+                response.setResultCount(response.getResults().size());
+            }
+
+            return response;
+        } catch (HttpMessageNotReadableException ex) {
+            LOGGER.error("Received malformed iTunes response for query '{}'", query, ex);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Received malformed album results from iTunes.",
+                    ex);
+        } catch (RestClientException ex) {
+            LOGGER.error("Failed to fetch iTunes results for query '{}'", query, ex);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Failed to fetch album results from iTunes.",
+                    ex);
+        }
     }
 
     @Override

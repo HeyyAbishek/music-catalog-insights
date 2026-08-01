@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/ai")
+@CrossOrigin(origins = "*")
 public class AiInsightsController {
 
     private final AlbumItemRepository albumItemRepository;
@@ -28,10 +30,14 @@ public class AiInsightsController {
     @Value("${openai.api.key:mock}")
     private String openAiKey;
 
-    public AiInsightsController(AlbumItemRepository albumItemRepository, UserRepository userRepository) {
+    public AiInsightsController(
+            AlbumItemRepository albumItemRepository,
+            UserRepository userRepository,
+            RestClient.Builder restClientBuilder
+    ) {
         this.albumItemRepository = albumItemRepository;
         this.userRepository = userRepository;
-        this.restClient = RestClient.create();
+        this.restClient = restClientBuilder.build();
     }
 
     @GetMapping("/insights")

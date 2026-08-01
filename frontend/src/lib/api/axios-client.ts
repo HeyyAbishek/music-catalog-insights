@@ -1,7 +1,13 @@
 import axios, { InternalAxiosRequestConfig, AxiosResponse } from 'axios';
 
+const API_BASE_URL = 
+  process.env.NEXT_PUBLIC_API_BASE_URL || 'https://music-catalog-insights-production.up.railway.app';
+
+// Format base URL cleanly to prevent double slashes
+const normalizedBaseUrl = API_BASE_URL.replace(/\/$/, '');
+
 export const axiosClient = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: `${normalizedBaseUrl}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -10,9 +16,11 @@ export const axiosClient = axios.create({
 // Request Interceptor: Automatically attach Bearer Token from localStorage
 axiosClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('token');
+      if (token && config.headers) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
@@ -24,9 +32,9 @@ axiosClient.interceptors.response.use(
   (response: AxiosResponse) => response,
   (error) => {
     if (error.response && error.response.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('username');
       if (typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
         window.location.href = '/login';
       }
     }
