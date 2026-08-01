@@ -12,14 +12,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClient.Builder;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -37,10 +39,21 @@ public class AlbumItemServiceImpl implements AlbumItemService {
     public AlbumItemServiceImpl(
             AlbumItemRepository albumItemRepository,
             UserRepository userRepository,
-            Builder restClientBuilder) {
+            RestClient.Builder restClientBuilder) {
         this.albumItemRepository = albumItemRepository;
         this.userRepository = userRepository;
+
+        // Configure modern JDK HttpClient with automatic redirect follow & timeouts
+        HttpClient httpClient = HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofSeconds(10));
+
         this.restClient = restClientBuilder
+                .requestFactory(requestFactory)
                 .baseUrl("https://itunes.apple.com")
                 .defaultHeader(HttpHeaders.USER_AGENT,
                         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
@@ -76,16 +89,22 @@ public class AlbumItemServiceImpl implements AlbumItemService {
 
             return response;
         } catch (HttpMessageNotReadableException ex) {
-            LOGGER.error("Received malformed iTunes response for query '{}'", query, ex);
+            LOGGER.error("Received malformed iTunes response for query '{}': {}", query, ex.getMessage(), ex);
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Received malformed album results from iTunes.",
+                    "Received malformed album results from iTunes: " + ex.getMessage(),
                     ex);
         } catch (RestClientException ex) {
-            LOGGER.error("Failed to fetch iTunes results for query '{}'", query, ex);
+            LOGGER.error("Failed to fetch iTunes results for query '{}': {}", query, ex.getMessage(), ex);
             throw new ResponseStatusException(
                     HttpStatus.BAD_GATEWAY,
-                    "Failed to fetch album results from iTunes.",
+                    "Failed to fetch album results from iTunes: " + ex.getMessage(),
+                    ex);
+        } catch (Exception ex) {
+            LOGGER.error("Unexpected error fetching iTunes results for query '{}': {}", query, ex.getMessage(), ex);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Unexpected search error: " + ex.getMessage(),
                     ex);
         }
     }
