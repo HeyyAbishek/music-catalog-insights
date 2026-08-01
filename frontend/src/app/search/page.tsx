@@ -1,16 +1,30 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { axiosClient } from '@/lib/api';
+import axios from 'axios';
 
+// Create an axios instance with base configuration to replace imported axiosClient
+const axiosClient = axios.create({
+  baseURL: '/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Updated interface to support both iTunes API fields and internal DTO fields
 interface SearchResultItem {
   id?: number | string;
-  externalId?: string;
-  title: string;
+  externalId?: string | number;
+  collectionId?: number | string;
+  title?: string;
+  collectionName?: string;
   artistName: string;
   genre?: string;
+  primaryGenreName?: string;
   releaseDate?: string;
   imageUrl?: string;
+  artworkUrl100?: string;
+  trackCount?: number;
 }
 
 const PAGE_SIZE = 10;
@@ -58,7 +72,6 @@ export default function SearchPage() {
     setError(null);
 
     try {
-      // Endpoint handles Spring Boot Pageable params: ?q=...&page=0&size=10
       const response = await axiosClient.get('/albums/search', {
         params: {
           q: debouncedQuery,
@@ -69,7 +82,6 @@ export default function SearchPage() {
 
       const data = response.data;
 
-      // Handle Spring Boot Page<T> or standard list responses
       if (data.content) {
         setResults(data.content);
         setTotalPages(data.totalPages || 0);
@@ -96,27 +108,34 @@ export default function SearchPage() {
   }, [fetchSearchResults]);
 
   // ----------------------------------------------------
-  // 3. SAVE ALBUM TO USER LIBRARY
+  // 3. SAVE ALBUM TO USER LIBRARY (Integrated Payload)
   // ----------------------------------------------------
   const handleSaveToLibrary = async (item: SearchResultItem) => {
-    const itemId = item.id || item.externalId;
+    const itemId = item.collectionId || item.id || item.externalId;
     if (!itemId) return;
 
     setSavingId(itemId);
     try {
-      await axiosClient.post('/albums', {
-        title: item.title,
+      // Map frontend iTunes/Catalog properties to match Spring Boot AlbumRequestDto
+      const payload = {
+        appleCatalogId: item.collectionId || item.externalId || item.id,
+        title: item.collectionName || item.title,
         artistName: item.artistName,
-        genre: item.genre || 'General',
+        genre: item.primaryGenreName || item.genre || 'General',
         releaseDate: item.releaseDate,
-        imageUrl: item.imageUrl,
+        trackCount: item.trackCount || 0,
+        artworkUrl: item.artworkUrl100 || item.imageUrl,
         userRating: 5, // Default rating on quick save
-      });
+        userNotes: 'Added from iTunes Search',
+      };
+
+      const response = await axiosClient.post('/albums', payload);
+      console.log('Album saved successfully:', response.data);
 
       setSavedIds((prev) => new Set(prev).add(itemId));
     } catch (err: any) {
       console.error('Failed to save release to library:', err);
-      alert('Could not save album to library.');
+      alert(err.response?.data?.message || 'Could not save album to library.');
     } finally {
       setSavingId(null);
     }
@@ -185,7 +204,11 @@ export default function SearchPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {results.map((item, index) => {
-          const itemId = item.id || item.externalId || index;
+          const itemId = item.collectionId || item.id || item.externalId || index;
+          const displayTitle = item.collectionName || item.title;
+          const displayGenre = item.primaryGenreName || item.genre;
+          const displayArtwork = item.artworkUrl100 || item.imageUrl;
+
           const isSaved = savedIds.has(itemId);
           const isSaving = savingId === itemId;
 
@@ -195,14 +218,24 @@ export default function SearchPage() {
               className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-sm transition-all hover:border-indigo-500/50 hover:shadow-md"
             >
               <div className="space-y-3">
+                {displayArtwork && (
+                  <img
+                    src={displayArtwork}
+                    alt={displayTitle || 'Album artwork'}
+                    className="w-full h-40 object-cover rounded-lg shadow-sm"
+                  />
+                )}
+
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-bold text-foreground text-base line-clamp-1">{item.title}</h3>
+                    <h3 className="font-bold text-foreground text-base line-clamp-1">
+                      {displayTitle}
+                    </h3>
                     <p className="text-xs text-muted-foreground font-medium">{item.artistName}</p>
                   </div>
-                  {item.genre && (
+                  {displayGenre && (
                     <span className="rounded-md bg-indigo-500/10 px-2 py-0.5 text-[10px] font-bold text-indigo-400 border border-indigo-500/20">
-                      {item.genre}
+                      {displayGenre}
                     </span>
                   )}
                 </div>
@@ -242,7 +275,8 @@ export default function SearchPage() {
           </button>
 
           <span className="text-xs text-muted-foreground font-medium">
-            Page <strong className="text-foreground">{page + 1}</strong> of <strong className="text-foreground">{totalPages}</strong>
+            Page <strong className="text-foreground">{page + 1}</strong> of{' '}
+            <strong className="text-foreground">{totalPages}</strong>
           </span>
 
           <button
